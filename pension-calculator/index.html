@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>퇴직연금 월수익 계산기</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* Layout: 왼쪽 계좌 설정 패널(넓은 화면에서 고정) + 오른쪽 결과 열(판정 → 핵심 수치 → 기준점 비교 → 현실적인 경로 → 목표별 표 → 계좌 규칙). 좁은 화면은 한 열. */
+:root {
+  --paper: #f1f4f2;
+  --surface: #fcfdfc;
+  --ink: #14201b;
+  --ink-2: #46544e;
+  --muted: #6f7d77;
+  --line: #d8dfdb;
+  --line-strong: #b9c3be;
+  --accent: #2a55c0;
+  --accent-soft: #e5ebf9;
+  --bar: #b3beb8;
+  /* 상태 색은 테마와 무관하게 고정 */
+  --good: #0ca30c;
+  --warn: #fab219;
+  --serious: #ec835a;
+  --crit: #d03b3b;
+  --font-display: "Hahmlet", "Noto Serif KR", "AppleMyungjo", serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0e1311;
+    --surface: #151c19;
+    --ink: #e7eeea;
+    --ink-2: #b2beb8;
+    --muted: #85938c;
+    --line: #27312d;
+    --line-strong: #3b4742;
+    --accent: #86a2f2;
+    --accent-soft: #1d2642;
+    --bar: #4b5853;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0e1311;
+  --surface: #151c19;
+  --ink: #e7eeea;
+  --ink-2: #b2beb8;
+  --muted: #85938c;
+  --line: #27312d;
+  --line-strong: #3b4742;
+  --accent: #86a2f2;
+  --accent-soft: #1d2642;
+  --bar: #4b5853;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+.wrap {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 56px;
+  display: grid;
+  gap: 28px;
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 머리말 */
+.top { display: grid; gap: 6px; max-width: 70ch; }
+.eyebrow { font-size: 0.8rem; color: var(--muted); letter-spacing: 0.06em; font-weight: 500; }
+h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  line-height: 1.25;
+  margin: 0;
+  text-wrap: balance;
+}
+.lede { margin: 0; color: var(--ink-2); }
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+/* 입력 패널 */
+.panel {
+  position: sticky;
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+.panel-note { margin: 0; font-size: 0.8rem; color: var(--muted); }
+fieldset { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
+fieldset + fieldset { border-top: 1px solid var(--line); padding-top: 18px; }
+legend { padding: 0; margin-bottom: 2px; font-size: 0.8rem; font-weight: 600; color: var(--muted); letter-spacing: 0.06em; }
+.field { display: grid; gap: 5px; min-width: 0; }
+.field > label, .field-head label { font-size: 0.875rem; color: var(--ink-2); }
+.field-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.field-head output { font-size: 0.875rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.box {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--paper);
+}
+.box:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.box input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+  padding: 8px 10px;
+  font-variant-numeric: tabular-nums;
+}
+.box input:focus { outline: none; }
+.box .unit { padding: 0 10px; color: var(--muted); font-size: 0.875rem; white-space: nowrap; }
+.hint { margin: 0; font-size: 0.8rem; color: var(--muted); }
+.hint.is-warn { color: var(--ink); }
+.hint.is-warn::before { content: "!"; display: inline-grid; place-items: center; width: 1.1em; height: 1.1em; margin-right: 4px; border-radius: 50%; background: var(--warn); color: #0b0b0b; font-size: 0.75em; font-weight: 700; }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+input[type="range"] { width: 100%; accent-color: var(--accent); margin: 2px 0 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); color: var(--ink); }
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--ink); font-weight: 600; }
+.reset {
+  justify-self: start;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 결과 열 */
+.results { display: grid; gap: 36px; min-width: 0; }
+section { display: grid; gap: 14px; min-width: 0; }
+h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.2rem;
+  line-height: 1.35;
+  margin: 0;
+  text-wrap: balance;
+}
+.sec-head { display: grid; gap: 2px; }
+.sec-sub { margin: 0; font-size: 0.85rem; color: var(--muted); }
+
+.hero {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px;
+  display: grid;
+  gap: 12px;
+}
+.hero-label { font-size: 0.875rem; color: var(--ink-2); }
+.hero-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 18px; }
+.hero-value { font-size: clamp(2.75rem, 8vw, 4rem); font-weight: 600; line-height: 1; letter-spacing: -0.02em; }
+.hero-text { margin: 0; max-width: 64ch; color: var(--ink-2); }
+.hero-text strong { color: var(--ink); font-weight: 600; }
+
+.pill {
+  --st: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 6px;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  background: color-mix(in oklab, var(--st) 16%, var(--surface));
+  border: 1px solid color-mix(in oklab, var(--st) 50%, var(--surface));
+}
+.pill svg { flex: none; }
+.pill.sm { font-size: 0.8rem; padding: 1px 8px 1px 4px; }
+.st-good { --st: var(--good); }
+.st-warn { --st: var(--warn); }
+.st-serious { --st: var(--serious); }
+.st-crit { --st: var(--crit); }
+
+/* 핵심 수치 */
+.metrics { display: grid; }
+.mrow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 20px;
+  align-items: baseline;
+  padding-block: 12px;
+  border-top: 1px solid var(--line);
+}
+.mrow:last-child { border-bottom: 1px solid var(--line); }
+.mrow dt { font-size: 0.95rem; }
+.mrow dd { margin: 0; font-size: 1.2rem; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mrow .sub { grid-column: 1 / -1; font-size: 0.8rem; color: var(--muted); }
+
+/* 기준점 비교 막대 */
+.chart { position: relative; display: grid; gap: 6px; }
+.bar-row { display: grid; grid-template-columns: 10.5rem minmax(0, 1fr); align-items: center; gap: 4px 12px; }
+.bar-label { font-size: 0.875rem; color: var(--ink-2); line-height: 1.3; }
+.bar-label.is-target { color: var(--ink); font-weight: 600; }
+.plot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  border-left: 1px solid var(--line-strong);
+  cursor: default;
+  border-radius: 0 6px 6px 0;
+}
+.plot:hover, .plot:focus-visible { background: color-mix(in oklab, var(--line) 45%, transparent); }
+.bar { flex: none; height: 16px; border-radius: 0 4px 4px 0; background: var(--bar); }
+.bar.is-target { background: var(--accent); }
+.bar-val { font-size: 0.875rem; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); }
+.bar-val.is-target { font-weight: 600; }
+.tip {
+  position: absolute;
+  z-index: 2;
+  max-width: 260px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+
+/* 현실적인 경로 */
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.tile {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+.tile-label { font-size: 0.85rem; color: var(--ink-2); }
+.tile-value { font-size: 1.5rem; font-weight: 600; line-height: 1.3; }
+.tile-sub { font-size: 0.8rem; color: var(--muted); }
+
+/* 목표별 표 */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th, td { padding: 10px 14px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child { text-align: left; }
+th:nth-child(4), td:nth-child(4) { text-align: left; }
+thead th { font-size: 0.8rem; font-weight: 500; color: var(--muted); }
+tbody tr:last-child td { border-bottom: 0; }
+tr.is-current td { background: var(--accent-soft); }
+tr.is-current td:first-child { font-weight: 600; }
+.now { margin-left: 6px; font-size: 0.72rem; font-weight: 600; color: var(--accent); }
+
+/* 계좌 규칙 */
+.rules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; margin: 0; }
+.rule { padding-block: 12px; border-top: 1px solid var(--line); min-width: 0; }
+.rule dt { font-weight: 600; font-size: 0.95rem; }
+.rule dd { margin: 2px 0 0; color: var(--ink-2); font-size: 0.875rem; }
+
+.foot { margin: 0; font-size: 0.8rem; color: var(--muted); max-width: 80ch; }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .panel { position: static; }
+}
+@media (max-width: 600px) {
+  .tiles, .rules { grid-template-columns: minmax(0, 1fr); }
+  .bar-row { grid-template-columns: minmax(0, 1fr); }
+  .bar-row + .bar-row { margin-top: 4px; }
+  .hero { padding: 20px; }
+}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">퇴직연금 DC · IRP</div>
+    <h1>퇴직연금 월수익 계산기</h1>
+    <p class="lede">원금과 목표 월수익을 넣으면, 위험자산 70% 한도 안에서 매달 몇 %를 벌어야 하는지와 그 목표를 현실적으로 이루려면 원금이 얼마나 필요한지 계산합니다.</p>
+  </header>
+
+  <div class="layout">
+    <form class="panel" id="form" autocomplete="off">
+      <p class="panel-note">질문하신 조건(적립금 1억, 월 2,000만 원, 70/30, 주 1~2회 매매)으로 채워 두었습니다.</p>
+
+      <fieldset>
+        <legend>계좌</legend>
+        <div class="field">
+          <label for="principal">적립금</label>
+          <div class="box"><input id="principal" type="number" inputmode="numeric" min="0" step="100" value="10000"><span class="unit">만 원</span></div>
+          <p class="hint" id="principalHint"></p>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="risk">위험자산 비중</label><output id="riskOut" for="risk"></output></div>
+          <input id="risk" type="range" min="0" max="70" step="5" value="70">
+          <p class="hint">퇴직연금은 위험자산을 적립금의 70%까지만 담을 수 있습니다.</p>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>목표</legend>
+        <div class="field">
+          <label for="target">목표 월수익</label>
+          <div class="box"><input id="target" type="number" inputmode="numeric" min="0" step="10" value="2000"><span class="unit">만 원</span></div>
+          <div class="chips" id="chips">
+            <button type="button" class="chip" data-v="50">월 50만</button>
+            <button type="button" class="chip" data-v="100">월 100만</button>
+            <button type="button" class="chip" data-v="300">월 300만</button>
+            <button type="button" class="chip" data-v="500">월 500만</button>
+            <button type="button" class="chip" data-v="2000">월 2,000만</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="perWeek">주당 매매 횟수</label>
+          <div class="box"><input id="perWeek" type="number" inputmode="decimal" min="0.5" max="20" step="0.5" value="1.5"><span class="unit">회 / 주</span></div>
+          <p class="hint" id="tradesHint"></p>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>가정</legend>
+        <div class="pair">
+          <div class="field">
+            <label for="riskRet">위험자산 기대수익률</label>
+            <div class="box"><input id="riskRet" type="number" inputmode="decimal" step="0.5" value="8"><span class="unit">% / 년</span></div>
+          </div>
+          <div class="field">
+            <label for="riskVol">위험자산 변동성</label>
+            <div class="box"><input id="riskVol" type="number" inputmode="decimal" min="0" step="1" value="18"><span class="unit">% / 년</span></div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="safeRet">안전자산 수익률</label>
+          <div class="box"><input id="safeRet" type="number" inputmode="decimal" step="0.1" value="3.5"><span class="unit">% / 년</span></div>
+          <p class="hint">예금·MMF·채권형 ETF 기준. 채권혼합형 ETF로 채우면 조금 더 높게 잡을 수 있습니다.</p>
+        </div>
+        <div class="field">
+          <label for="contrib">월 추가 납입</label>
+          <div class="box"><input id="contrib" type="number" inputmode="numeric" min="0" step="10" value="0"><span class="unit">만 원</span></div>
+          <p class="hint" id="contribHint"></p>
+        </div>
+      </fieldset>
+
+      <button type="button" class="reset" id="reset">처음 조건으로 되돌리기</button>
+    </form>
+
+    <div class="results">
+      <div class="hero" aria-live="polite">
+        <div class="hero-label">필요한 월수익률 (계좌 전체)</div>
+        <div class="hero-row">
+          <div class="hero-value" id="heroValue">–</div>
+          <span id="heroPill"></span>
+        </div>
+        <p class="hero-text" id="heroText"></p>
+      </div>
+
+      <section>
+        <div class="sec-head">
+          <h2>목표를 쪼개 보면</h2>
+          <p class="sec-sub">70/30 제약과 매매 횟수를 반영한 수치입니다.</p>
+        </div>
+        <dl class="metrics">
+          <div class="mrow"><dt>연 환산 수익률</dt><dd id="mAnnual"></dd><div class="sub" id="mAnnualSub"></div></div>
+          <div class="mrow"><dt id="mRiskyLabel">위험자산이 내야 할 월수익률</dt><dd id="mRisky"></dd><div class="sub" id="mRiskySub"></div></div>
+          <div class="mrow"><dt>거래 1회당 필요 수익률</dt><dd id="mTrade"></dd><div class="sub" id="mTradeSub"></div></div>
+          <div class="mrow"><dt>한 달 수익이 목표 이상일 확률</dt><dd id="mProb"></dd><div class="sub" id="mProbSub"></div></div>
+        </dl>
+      </section>
+
+      <section>
+        <div class="sec-head">
+          <h2>필요 연수익률과 기준점</h2>
+          <p class="sec-sub">모든 막대는 같은 눈금입니다. 막대에 마우스를 올리면 설명이 나옵니다.</p>
+        </div>
+        <div class="chart" id="chart"></div>
+      </section>
+
+      <section>
+        <div class="sec-head">
+          <h2>현실적인 경로</h2>
+          <p class="sec-sub" id="pathSub"></p>
+        </div>
+        <div class="tiles">
+          <div class="tile"><div class="tile-label">이 목표에 필요한 원금</div><div class="tile-value" id="tCap"></div><div class="tile-sub" id="tCapSub"></div></div>
+          <div class="tile"><div class="tile-label">지금 적립금의 기대 월수익</div><div class="tile-value" id="tNow"></div><div class="tile-sub" id="tNowSub"></div></div>
+          <div class="tile"><div class="tile-label">필요 원금까지 걸리는 기간</div><div class="tile-value" id="tTime"></div><div class="tile-sub" id="tTimeSub"></div></div>
+          <div class="tile"><div class="tile-label">연금으로 받을 수 있는 한도 (1년차)</div><div class="tile-value" id="tLimit"></div><div class="tile-sub" id="tLimitSub"></div></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head">
+          <h2>목표 월수익별로 보면</h2>
+          <p class="sec-sub" id="tableSub"></p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th scope="col">목표 월수익</th><th scope="col">필요 월수익률</th><th scope="col">연 환산 (복리)</th><th scope="col">판정</th><th scope="col">필요 원금</th></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head">
+          <h2>퇴직연금 계좌의 규칙</h2>
+          <p class="sec-sub">수익률과 별개로 운용과 인출을 묶는 제도상 제약입니다.</p>
+        </div>
+        <dl class="rules">
+          <div class="rule"><dt>위험자산 70% 한도</dt><dd>주식형 ETF 같은 위험자산은 적립금의 70%까지만 담을 수 있고, 나머지 30%는 안전자산이어야 합니다.</dd></div>
+          <div class="rule"><dt>레버리지·인버스 ETF 불가</dt><dd>파생상품 위험평가액이 40%를 넘는 ETF는 매수할 수 없어, 수익을 키울 수단이 막혀 있습니다.</dd></div>
+          <div class="rule"><dt>국내 상장 ETF만</dt><dd>개별 주식과 해외 거래소에 상장된 ETF는 살 수 없습니다. 해외 지수는 국내 상장 ETF로 담습니다.</dd></div>
+          <div class="rule"><dt>55세 전 인출 제한</dt><dd>무주택자 주택 구입, 6개월 이상 요양 같은 법정 사유가 아니면 중도인출이 안 됩니다.</dd></div>
+          <div class="rule"><dt>연금수령한도</dt><dd>한도 안에서 연금으로 받으면 운용수익에 연금소득세 3.3~5.5%, 한도를 넘겨 받으면 기타소득세 16.5%가 붙습니다.</dd></div>
+          <div class="rule"><dt>채권혼합형 ETF는 안전자산</dt><dd>주식 비중 40% 이하 채권혼합형 ETF는 안전자산 30%로 인정돼, 실질 주식 비중을 최대 약 82%까지 높일 수 있습니다.</dd></div>
+        </dl>
+      </section>
+
+      <p class="foot">계산 가정: 수수료·세금·물가는 반영하지 않았습니다. 확률은 위험자산 월수익률이 정규분포를 따른다고 본 이론값이라 극단적인 달을 과소평가합니다. 실제로는 이보다 자주 일어날 수 있지만 매달 반복되지는 않습니다. 버크셔 해서웨이·S&amp;P500 수치는 장기 연평균의 어림값입니다. 일반 정보이며 투자 권유가 아닙니다.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const DEFAULTS = { principal: 10000, risk: 70, target: 2000, perWeek: 1.5, riskRet: 8, riskVol: 18, safeRet: 3.5, contrib: 0 };
+  const TABLE_TARGETS = [50, 100, 200, 300, 500, 1000, 2000]; // 만 원
+  const CONTRIB_LIMIT = 150e4; // 연금계좌 납입한도 연 1,800만 원 = 월 150만 원
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- 서식 ----------
+  function trimZeros(s) { return s.includes('.') ? s.replace(/\.?0+$/, '') : s; }
+  function fmtPct(f) {
+    if (!Number.isFinite(f)) return '—';
+    const p = f * 100, a = Math.abs(p);
+    if (a >= 1000) return Math.round(p).toLocaleString('ko-KR') + '%';
+    if (a >= 10) return trimZeros(p.toFixed(1)) + '%';
+    return trimZeros(p.toFixed(2)) + '%';
+  }
+  function fmtWon(w) {
+    if (!Number.isFinite(w)) return '—';
+    if (w >= 1e12) return trimZeros((w / 1e12).toFixed(1)) + '조 원';
+    if (w >= 1e8) {
+      let eok = Math.floor(w / 1e8);
+      let man = Math.round((w - eok * 1e8) / 1e6) * 100;
+      if (man >= 10000) { eok += 1; man = 0; }
+      return man ? `${eok.toLocaleString('ko-KR')}억 ${man.toLocaleString('ko-KR')}만 원` : `${eok.toLocaleString('ko-KR')}억 원`;
+    }
+    if (w >= 1e7) return Math.round(w / 1e4).toLocaleString('ko-KR') + '만 원';
+    if (w >= 1e4) return trimZeros((w / 1e4).toFixed(1)) + '만 원';
+    return Math.round(w).toLocaleString('ko-KR') + '원';
+  }
+  function fmtTimes(x) {
+    if (!Number.isFinite(x)) return '셀 수 없이 많은';
+    if (x >= 1000) return Math.round(x).toLocaleString('ko-KR');
+    return trimZeros(x.toFixed(1));
+  }
+  function fmtDuration(months) {
+    if (months === 0) return '이미 충분';
+    if (!Number.isFinite(months) || months > 1200) return '100년 이상';
+    let y = Math.floor(months / 12), m = Math.ceil(months - y * 12);
+    if (m === 12) { y += 1; m = 0; }
+    if (y === 0) return `약 ${m}개월`;
+    return m ? `약 ${y}년 ${m}개월` : `약 ${y}년`;
+  }
+  function fmtProb(p) {
+    if (!(p > 1e-15)) return '사실상 0%';
+    if (p >= 0.995) return '거의 매달';
+    const pc = p * 100;
+    if (pc >= 1) return Math.round(pc) + '%';
+    const d = Math.min(14, Math.ceil(-Math.log10(pc)) + 1);
+    return pc.toFixed(d) + '%';
+  }
+  function fmtEvery(p) {
+    if (!(p > 1e-15)) return '이론상 일어나지 않는 수준';
+    if (p >= 0.5) return '절반 넘는 달에 목표 이상';
+    const months = 1 / p;
+    if (months < 24) return `약 ${Math.round(months)}개월에 한 번`;
+    const years = months / 12;
+    if (years < 1e4) return `이론상 약 ${Math.round(years).toLocaleString('ko-KR')}년에 한 번`;
+    if (years < 1e8) return `이론상 약 ${Math.round(years / 1e4).toLocaleString('ko-KR')}만 년에 한 번`;
+    return `이론상 약 ${trimZeros((years / 1e8).toFixed(1))}억 년에 한 번`;
+  }
+
+  // ---------- 계산 ----------
+  // 상대오차 1.2e-7 이하인 erfc 근사(Numerical Recipes erfcc). 꼬리 확률에도 상대오차가 유지된다.
+  function erfc(x) {
+    const z = Math.abs(x), t = 1 / (1 + 0.5 * z);
+    const r = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 +
+      t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * 0.17087277)))))))));
+    return x >= 0 ? r : 2 - r;
+  }
+  function monthsToReach(P, c, R, req) {
+    if (P >= req) return 0;
+    const i = Math.pow(1 + R, 1 / 12) - 1;
+    if (!(i > 0)) return c > 0 ? (req - P) / c : Infinity;
+    const k = c / i;
+    return Math.log((req + k) / (P + k)) / Math.log(1 + i);
+  }
+  function verdict(annual, portR) {
+    if (annual <= portR) return { key: 'good', label: '현실적', text: `입력한 기대수익률(연 ${fmtPct(portR)}) 안에 들어오는 목표입니다. 다만 해마다 수익이 고르게 나오지는 않습니다.` };
+    if (annual <= 0.15) return { key: 'warn', label: '도전적', text: '장기 기대수익률을 웃돕니다. 시장이 좋은 해에는 가능하지만 매년 기대하기는 어렵습니다.' };
+    if (annual <= 0.30) return { key: 'serious', label: '매우 어려움', text: '워런 버핏의 장기 성과(연 20% 안팎)에 맞먹는 수익률이 필요합니다.' };
+    if (annual <= 1) return { key: 'crit', label: '비현실적', text: '어떤 운용사도 꾸준히 낸 적 없는 수익률입니다.' };
+    return { key: 'crit', label: '불가능에 가까움', text: '1년 만에 원금이 두 배를 넘어야 하는 속도로, 퇴직연금 계좌에서는 사실상 불가능합니다.' };
+  }
+  const ICONS = {
+    good: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="var(--st)"/><path d="M4.8 8.3l2.1 2.1 4.3-4.6" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    warn: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="var(--st)"/><path d="M8 4.3v4.6" stroke="#0b0b0b" stroke-width="1.8" stroke-linecap="round"/><circle cx="8" cy="11.4" r="1" fill="#0b0b0b"/></svg>',
+    serious: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l7 12.5H1z" fill="var(--st)"/><path d="M8 6v3.8" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><circle cx="8" cy="11.8" r="0.95" fill="#fff"/></svg>',
+    crit: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="var(--st)"/><path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>'
+  };
+  function pill(v, small) {
+    return `<span class="pill st-${v.key}${small ? ' sm' : ''}">${ICONS[v.key]}${v.label}</span>`;
+  }
+
+  function read() {
+    const n = (id) => { const v = parseFloat($(id).value); return Number.isFinite(v) ? v : 0; };
+    return {
+      P: Math.max(0, n('principal')) * 1e4,
+      T: Math.max(0, n('target')) * 1e4,
+      w: Math.min(70, Math.max(0, n('risk'))) / 100,
+      perWeek: Math.max(0, n('perWeek')),
+      rr: n('riskRet') / 100,
+      vol: Math.max(0, n('riskVol')) / 100,
+      sr: n('safeRet') / 100,
+      c: Math.max(0, n('contrib')) * 1e4
+    };
+  }
+
+  // ---------- 렌더 ----------
+  function render() {
+    const s = read();
+    const { P, T, w, rr, vol, sr, c } = s;
+    const portR = w * rr + (1 - w) * sr;
+    const tradesPerMonth = s.perWeek * 52 / 12;
+
+    $('riskOut').textContent = `위험 ${Math.round(w * 100)}% · 안전 ${Math.round((1 - w) * 100)}%`;
+    $('principalHint').textContent = P > 0 ? `= ${fmtWon(P)}` : '적립금을 입력하세요.';
+    $('tradesHint').textContent = `한 달 약 ${trimZeros(tradesPerMonth.toFixed(1))}회 매매`;
+    const ch = $('contribHint');
+    ch.textContent = c > CONTRIB_LIMIT
+      ? '연금계좌 납입한도(연 1,800만 원, 월 150만 원)를 넘습니다.'
+      : '연금계좌 납입한도는 연 1,800만 원(월 150만 원)입니다.';
+    ch.classList.toggle('is-warn', c > CONTRIB_LIMIT);
+    document.querySelectorAll('#chips .chip').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.v) * 1e4 === T)));
+
+    if (!(P > 0)) {
+      $('heroValue').textContent = '–';
+      $('heroPill').innerHTML = '';
+      $('heroText').textContent = '적립금을 입력하면 계산합니다.';
+      return;
+    }
+
+    // 목표 수익률
+    const m = T / P;
+    const annual = Math.pow(1 + m, 12) - 1;
+    const v = verdict(annual, portR);
+    $('heroValue').textContent = fmtPct(m);
+    $('heroPill').innerHTML = pill(v);
+    $('heroText').innerHTML = `${fmtWon(P)}으로 매달 ${fmtWon(T)}을 벌려면 계좌 전체가 매달 <strong>${fmtPct(m)}</strong>씩 불어나야 합니다. 복리로 이어가면 1년 뒤 원금이 <strong>${fmtTimes(1 + annual)}배</strong>가 되는 속도입니다. ${v.text}`;
+
+    // 핵심 수치
+    $('mAnnual').textContent = `복리 ${fmtPct(annual)}`;
+    $('mAnnualSub').textContent = `매달 수익을 꺼내 쓰면 단리 연 ${fmtPct(m * 12)}, 재투자하면 복리 연 ${fmtPct(annual)}입니다.`;
+
+    const riskyAmt = P * w, safeAmt = P - riskyAmt;
+    const safeIncome = safeAmt * sr / 12;
+    $('mRiskyLabel').textContent = `위험자산(${fmtWon(riskyAmt)})이 내야 할 월수익률`;
+    let riskyNeed = NaN;
+    if (riskyAmt > 0) {
+      riskyNeed = Math.max(0, (T - safeIncome) / riskyAmt);
+      $('mRisky').textContent = fmtPct(riskyNeed);
+      $('mRiskySub').textContent = `안전자산 ${fmtWon(safeAmt)}은 연 ${fmtPct(sr)}로 월 ${fmtWon(Math.max(0, safeIncome))}만 보탭니다.`;
+    } else {
+      $('mRisky').textContent = '—';
+      $('mRiskySub').textContent = '위험자산 0%: 안전자산 수익만으로 목표를 채워야 합니다.';
+    }
+
+    if (riskyAmt > 0 && tradesPerMonth > 0) {
+      const perTrade = Math.pow(1 + riskyNeed, 1 / tradesPerMonth) - 1;
+      $('mTrade').textContent = fmtPct(perTrade);
+      $('mTradeSub').textContent = `주 ${trimZeros(s.perWeek.toFixed(1))}회는 한 달 약 ${trimZeros(tradesPerMonth.toFixed(1))}회입니다. 위험자산 전체로, 한 번도 손실 없이 매번 이만큼 벌어야 합니다.`;
+    } else {
+      $('mTrade').textContent = '—';
+      $('mTradeSub').textContent = '위험자산 비중과 매매 횟수를 넣으면 계산합니다.';
+    }
+
+    const mu = w * rr / 12 + (1 - w) * sr / 12;
+    const sigma = w * vol / Math.sqrt(12);
+    const p = sigma > 0 ? 0.5 * erfc((m - mu) / (sigma * Math.SQRT2)) : (mu >= m ? 1 : 0);
+    $('mProb').textContent = fmtProb(p);
+    $('mProbSub').textContent = `${fmtEvery(p)}. 위험자산 연 ${fmtPct(rr)}·변동성 ${fmtPct(vol)}의 정규분포 가정입니다.`;
+
+    // 기준점 비교
+    const bars = [
+      { key: 'target', label: '이 목표 (복리 연 환산)', v: annual, val: fmtPct(annual), tip: `월 ${fmtPct(m)}를 12달 복리로 이어갈 때의 연 수익률` },
+      { key: 'brk', label: '버크셔 해서웨이', v: 0.20, val: '약 20%', tip: '워런 버핏의 버크셔 해서웨이 주가, 1965년 이후 연평균 약 20%' },
+      { key: 'spx', label: '미국 S&P500', v: 0.10, val: '약 10%', tip: '배당 재투자 포함 장기 연평균 약 10%' },
+      { key: 'port', label: '이 계좌 기대수익률', v: portR, val: fmtPct(portR), tip: `위험자산 ${Math.round(w * 100)}% × ${fmtPct(rr)} + 안전자산 ${Math.round((1 - w) * 100)}% × ${fmtPct(sr)}` },
+      { key: 'safe', label: '안전자산', v: sr, val: fmtPct(sr), tip: '입력한 안전자산 연 수익률' }
+    ].sort((a, b) => b.v - a.v);
+    const max = Math.max(...bars.map((b) => b.v), 0.01);
+    const capped = Number.isFinite(max) ? max : 1;
+    $('chart').innerHTML = bars.map((b) => {
+      const f = Number.isFinite(b.v) ? Math.max(0, b.v) / capped : 1;
+      const t = b.key === 'target' ? ' is-target' : '';
+      return `<div class="bar-row"><div class="bar-label${t}">${b.label}</div>` +
+        `<div class="plot" tabindex="0" data-tip="${b.tip}" aria-label="${b.label} ${b.val}. ${b.tip}">` +
+        `<div class="bar${t}" style="width:max(2px, calc((100% - 6rem) * ${f.toFixed(5)}))"></div>` +
+        `<span class="bar-val${t}">${b.val}</span></div></div>`;
+    }).join('') + '<div class="tip" id="tip" hidden></div>';
+
+    // 현실적인 경로
+    $('pathSub').textContent = `이 계좌 기대수익률 연 ${fmtPct(portR)}(위험 ${Math.round(w * 100)}% × ${fmtPct(rr)} + 안전 ${Math.round((1 - w) * 100)}% × ${fmtPct(sr)}) 기준입니다.`;
+    const reqCap = portR > 0 ? T * 12 / portR : Infinity;
+    $('tCap').textContent = portR > 0 ? fmtWon(reqCap) : '계산 불가';
+    $('tCapSub').textContent = portR > 0 ? `원금은 그대로 두고 연 ${fmtPct(portR)} 수익만 꺼내 쓸 때` : '기대수익률이 0% 이하입니다.';
+    $('tNow').textContent = fmtWon(P * Math.max(0, portR) / 12);
+    $('tNowSub').textContent = `${fmtWon(P)} × 연 ${fmtPct(portR)} ÷ 12, 평균값이라 해마다 편차가 큽니다.`;
+    const months = portR > 0 ? monthsToReach(P, c, portR, reqCap) : Infinity;
+    $('tTime').textContent = fmtDuration(months);
+    $('tTimeSub').textContent = `월 ${c > 0 ? fmtWon(c) : '0원'} 추가 납입, 연 ${fmtPct(portR)} 복리로 불릴 때`;
+    $('tLimit').textContent = `월 ${fmtWon(P * 1.2 / 10 / 12)}`;
+    $('tLimitSub').textContent = `${fmtWon(P)} ÷ (11 − 1) × 120% = 연 ${fmtWon(P * 0.12)}. 넘겨 받으면 연금외수령으로 세율이 올라갑니다.`;
+
+    // 목표별 표
+    $('tableSub').textContent = `적립금 ${fmtWon(P)}, 위험자산 ${Math.round(w * 100)}% 기준입니다. 필요 원금은 연 ${fmtPct(portR)} 수익만 꺼내 쓴다고 본 값입니다.`;
+    const targets = TABLE_TARGETS.map((x) => x * 1e4);
+    if (T > 0 && !targets.includes(T)) targets.push(T);
+    targets.sort((a, b) => a - b);
+    $('tbody').innerHTML = targets.map((t) => {
+      const mm = t / P, an = Math.pow(1 + mm, 12) - 1, vv = verdict(an, portR);
+      const cur = t === T;
+      return `<tr${cur ? ' class="is-current"' : ''}><td>월 ${fmtWon(t)}${cur ? '<span class="now">입력값</span>' : ''}</td>` +
+        `<td>${fmtPct(mm)}</td><td>${fmtPct(an)}</td><td>${pill(vv, true)}</td>` +
+        `<td>${portR > 0 ? fmtWon(t * 12 / portR) : '—'}</td></tr>`;
+    }).join('');
+  }
+
+  // ---------- 막대 툴팁 ----------
+  const chart = $('chart');
+  function showTip(plot) {
+    const tip = $('tip');
+    if (!tip || !plot) return;
+    tip.textContent = plot.dataset.tip;
+    tip.hidden = false;
+    const cr = chart.getBoundingClientRect();
+    const bar = plot.querySelector('.bar').getBoundingClientRect();
+    const pr = plot.getBoundingClientRect();
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    const left = Math.min(Math.max(0, bar.right - cr.left - tw / 2), cr.width - tw);
+    let top = pr.top - cr.top - th - 6;
+    if (top < 0) top = pr.bottom - cr.top + 6;
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+  }
+  function hideTip() { const tip = $('tip'); if (tip) tip.hidden = true; }
+  chart.addEventListener('pointerover', (e) => showTip(e.target.closest('.plot')));
+  chart.addEventListener('pointerleave', hideTip);
+  chart.addEventListener('focusin', (e) => showTip(e.target.closest('.plot')));
+  chart.addEventListener('focusout', hideTip);
+
+  // ---------- 입력 ----------
+  const form = $('form');
+  form.addEventListener('input', render);
+  form.addEventListener('submit', (e) => e.preventDefault());
+  $('chips').addEventListener('click', (e) => {
+    const b = e.target.closest('.chip');
+    if (!b) return;
+    $('target').value = b.dataset.v;
+    render();
+  });
+  $('reset').addEventListener('click', () => {
+    Object.entries(DEFAULTS).forEach(([id, val]) => { $(id).value = val; });
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
